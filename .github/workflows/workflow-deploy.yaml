@@ -2,11 +2,12 @@ name: Build and Deploy
 
 on:
   push:
+    tags:
+      - '*'
 
 env:
   IMAGE_NAME: meilisearch-proxy
   FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
-  VERSION: 0.1.0
 
 jobs:
   test:
@@ -50,8 +51,8 @@ jobs:
         with:
           images: ${{ env.FULL_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-            type=semver,prefix=v,enable=${{ env.VERSION }}
+            type=raw,value=latest,enable=true
+            type=semver,pattern={{version}}
             type=sha
       - name: Login to Docker Registry
         uses: docker/login-action@v2
