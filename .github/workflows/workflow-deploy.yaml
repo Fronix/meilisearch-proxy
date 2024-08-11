@@ -73,12 +73,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package Helm chart
+        run: helm package charts/meilisearch-proxy
+
+      - name: Login to Helm registry
+        run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} https://registry.maxroll.gg
+
       - name: Push Helm chart to registry
-        uses: bsord/helm-push@v4.1.0
-        with:
-          useOCIRegistry: true
-          registry-url:  oci://registry.maxroll.gg/library
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
-          force: true
-          chart-folder: charts/meilisearch-proxy
+        run: helm registry push *.tgz registry.maxroll.gg
