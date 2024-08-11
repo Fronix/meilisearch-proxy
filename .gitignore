@@ -1,0 +1,5 @@
+bin/*
+!bin/.gitkeep
+
+.env
+.DS_Store
