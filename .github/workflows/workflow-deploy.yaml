@@ -83,4 +83,7 @@ jobs:
         run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} https://registry.maxroll.gg
 
       - name: Push Helm chart to registry
-        run: helm registry push *.tgz registry.maxroll.gg
+        run: |
+          for file in *.tgz; do
+            helm push $file oci://registry.maxroll.gg/library
+          done
