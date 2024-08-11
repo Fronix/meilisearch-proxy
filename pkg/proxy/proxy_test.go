@@ -1,9 +1,7 @@
 package proxy_test
 
 import (
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 
 	"github.com/alicebob/miniredis/v2"
@@ -32,24 +30,12 @@ var _ = Describe("Proxy", Ordered, func() {
 	var redis *miniredis.Miniredis
 	var fakeMeilisearch *http.Server
 	var addr string
-	var proxyUrl string
 
 	// start a fake Meilisearch server
 
 	BeforeAll(func() {
 		redis, _ = miniredis.Run()
 		addr = "redis://" + redis.Addr()
-		proxyListener, err := net.Listen("tcp", ":0")
-		if err != nil {
-			panic(err)
-		}
-
-		meilisearchListener, err := net.Listen("tcp", ":0")
-		if err != nil {
-			panic(err)
-		}
-
-		proxyUrl = fmt.Sprintf("http://localhost:%d", proxyListener.Addr().(*net.TCPAddr).Port)
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/indexes/test/search", func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +49,7 @@ var _ = Describe("Proxy", Ordered, func() {
 		})
 
 		fakeMeilisearch = &http.Server{
-			Addr:    fmt.Sprintf("localhost:%d", meilisearchListener.Addr().(*net.TCPAddr).Port),
+			Addr:    "localhost:7777",
 			Handler: mux,
 		}
 
@@ -74,7 +60,7 @@ var _ = Describe("Proxy", Ordered, func() {
 			MeilisearchMasterKey:   "masterKey",
 			ProxyMasterKey:         "proxyMasterKey",
 			ProxyMasterKeyOverride: false,
-			Port:                   fmt.Sprintf("%d", proxyListener.Addr().(*net.TCPAddr).Port),
+			Port:                   "8888",
 			CacheConfig: &config.CacheConfig{
 				TTL:    300,
 				Engine: "redis",
@@ -90,7 +76,7 @@ var _ = Describe("Proxy", Ordered, func() {
 
 		It("should proxy POST indexes", func() {
 			// create a request
-			req, _ := http.NewRequest("POST", proxyUrl+"/indexes/test/search", nil)
+			req, _ := http.NewRequest("POST", "http://localhost:8888/indexes/test/search", nil)
 
 			// req should contain "{"name":"test"}"
 			resp, err := http.DefaultClient.Do(req)
@@ -109,7 +95,7 @@ var _ = Describe("Proxy", Ordered, func() {
 	It("should have test data in cache", func() {
 
 		// create a request
-		_, _ = http.NewRequest("GET", proxyUrl+"/indexes/test/search", nil)
+		_, _ = http.NewRequest("GET", "http://localhost:8888/indexes/test/search", nil)
 
 		cached, err := redis.Get("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
@@ -123,7 +109,7 @@ var _ = Describe("Proxy", Ordered, func() {
 	It("should simply proxy other requests", func() {
 
 		// create a request
-		req, _ := http.NewRequest("GET", proxyUrl+"/indexes", nil)
+		req, _ := http.NewRequest("GET", "http://localhost:8888/indexes", nil)
 
 		resp, err := http.DefaultClient.Do(req)
 		Expect(err).To(BeNil())
