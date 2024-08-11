@@ -15,6 +15,6 @@ COPY go.sum go.sum
 
 RUN go mod download
 
-RUN CGO_ENABLED=0 GOOS=$BUILDOS GOARCH=$TARGETARCH go build -a -o bin/meilisearch-proxy cmd/meilisearch-proxy/main.go
+RUN CGO_ENABLED=0 GOOS=$BUILDOS GOARCH=$TARGETARCH go build -a -o bin/meilisearch-proxy cmd/main.go
 
 CMD ["/app/bin/meilisearch-proxy"]
