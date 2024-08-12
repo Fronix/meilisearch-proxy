@@ -60,6 +60,8 @@ func NewProxy(config *config.Config) *Proxy {
 			req.Header.Set("User-Agent", "")
 		}
 
+		req.Header.Set("Accept-Encoding", "deflate,gzip")
+
 	}
 	cache := caching.NewCache(ctx, config.CacheConfig)
 
