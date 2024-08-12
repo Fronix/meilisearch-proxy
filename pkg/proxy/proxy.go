@@ -115,13 +115,18 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// Write the captured response to the original response writer
 	for k, v := range recorder.Header() {
+
+		if k == "Content-Encoding" {
+			continue
+		}
+
 		w.Header()[k] = v
 	}
 	w.WriteHeader(recorder.Code)
 	w.Write(responseBody)
 
 	// never cache an error response or an empty response
-	if recorder.Code != http.StatusOK || recorder.Body.Len() == 0 {
+	if recorder.Code != http.StatusOK || len(responseBody) == 0 {
 		p.Logger.Debug().Msgf("Not caching response for %s, key: %s", r.URL.Path, cacheKeyString)
 		return
 	}
