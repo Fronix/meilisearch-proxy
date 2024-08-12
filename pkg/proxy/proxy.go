@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -39,6 +41,8 @@ func NewProxy(config *config.Config) *Proxy {
 		logger.Fatal().Msgf("Error parsing Meilisearch host: %s", err)
 	}
 
+	logger.Info().Msgf("Meilisearch host: %s", source.String())
+
 	ctx := context.Background()
 	proxy := httputil.NewSingleHostReverseProxy(source)
 
@@ -55,9 +59,6 @@ func NewProxy(config *config.Config) *Proxy {
 		if _, ok := req.Header["User-Agent"]; !ok {
 			req.Header.Set("User-Agent", "")
 		}
-
-		// always use gzip encoding
-		req.Header.Set("Accept-Encoding", "deflate")
 
 	}
 	cache := caching.NewCache(ctx, config.CacheConfig)
@@ -108,28 +109,68 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// Capture the response for caching
 	recorder := httptest.NewRecorder()
-	p.proxy.ServeHTTP(recorder, r)
+	responseBody, err := p.recordProxyRequest(r, recorder)
 
 	// Write the captured response to the original response writer
 	for k, v := range recorder.Header() {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(recorder.Code)
-	w.Write(recorder.Body.Bytes())
+	w.Write(responseBody)
 
 	// never cache an error response or an empty response
 	if recorder.Code != http.StatusOK || recorder.Body.Len() == 0 {
+		p.Logger.Debug().Msgf("Not caching response for %s, key: %s", r.URL.Path, cacheKeyString)
 		return
 	}
 
 	// Store response in cache
 	p.Logger.Debug().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
 
-	err := p.cache.Set(p.Context, cacheKeyString, recorder.Body.String())
+	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]))
 
 	if err != nil {
 		p.Logger.Error().Msgf("Error storing response in cache for %s, key: %s: %s", r.URL.Path, cacheKeyString, err)
 	}
+}
+
+func (p *Proxy) recordProxyRequest(r *http.Request, recorder *httptest.ResponseRecorder) ([]byte, error) {
+	p.Logger.Debug().Msgf("Proxying request to %s", r.URL.String())
+
+	p.proxy.ServeHTTP(recorder, r)
+
+	// Check if the response is compressed
+	encoding := recorder.Header().Get("Content-Encoding")
+	var body []byte
+	var err error
+
+	switch encoding {
+	case "gzip":
+		p.Logger.Debug().Msg("Decompressing gzip response body")
+		gz, err := gzip.NewReader(recorder.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gz.Close()
+		body, err = io.ReadAll(gz)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read gzip body: %w", err)
+		}
+	case "deflate":
+		p.Logger.Debug().Msg("Decompressing deflate response body")
+		// Decompress deflate
+		fl := flate.NewReader(recorder.Body)
+		defer fl.Close()
+		body, err = io.ReadAll(fl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read deflate body: %w", err)
+		}
+	default:
+		p.Logger.Debug().Msg("Using response body as is")
+		body = recorder.Body.Bytes()
+	}
+
+	return body, nil
 }
 
 func (p *Proxy) handleDefault(w http.ResponseWriter, r *http.Request) {

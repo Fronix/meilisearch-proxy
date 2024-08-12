@@ -92,5 +92,6 @@ proxy:
   cacheEngine: "memory"
   overrideProxyKey: false
   masterKey: ""
+  logLevel: "info"
 
 
