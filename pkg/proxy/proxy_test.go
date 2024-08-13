@@ -101,8 +101,6 @@ var _ = Describe("Proxy", Ordered, func() {
 
 		Expect(err).To(BeNil())
 
-		redis.Set("test", "dsfdsf")
-
 		Expect(cached).To(Equal(testJSON))
 	})
 

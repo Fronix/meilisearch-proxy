@@ -101,13 +101,13 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// Check if response is in cache
 	if response, err := p.cache.Get(p.Context, cacheKeyString); err == nil {
-		p.Logger.Debug().Msgf("Cache hit for %s, key: %s", r.URL.Path, cacheKeyString)
+		p.Logger.Info().Msgf("Cache hit for %s, key: %s", r.URL.Path, cacheKeyString)
 
 		w.Write([]byte(response))
 		return
 	}
 
-	p.Logger.Debug().Msgf("Cache miss for %s, key: %s", r.URL.Path, cacheKeyString)
+	p.Logger.Info().Msgf("Cache miss for %s, key: %s", r.URL.Path, cacheKeyString)
 
 	// Capture the response for caching
 	recorder := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store response in cache
-	p.Logger.Debug().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
+	p.Logger.Info().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
 
 	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]))
 
