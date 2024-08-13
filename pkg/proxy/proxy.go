@@ -132,7 +132,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store response in cache
-	p.Logger.Info().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
+	p.Logger.Debug().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
 
 	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]))
 
