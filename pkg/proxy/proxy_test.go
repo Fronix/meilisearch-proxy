@@ -97,7 +97,7 @@ var _ = Describe("Proxy", Ordered, func() {
 		// create a request
 		_, _ = http.NewRequest("GET", "http://localhost:8888/indexes/test/search", nil)
 
-		cached, err := redis.Get("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+		cached, err := redis.Get("69166bc619a4b7d7b518c76d46e73d10c2a1dae9baf31aaf4254906582534213")
 
 		Expect(err).To(BeNil())
 
