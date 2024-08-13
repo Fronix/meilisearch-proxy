@@ -93,7 +93,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 			return
 		}
-		cacheKey = sha256.Sum256(body)
+		cacheKey = sha256.Sum256(append(cacheKey[:], body...))
 		r.Body = io.NopCloser(strings.NewReader(string(body))) // Reset the body after reading
 	}
 
