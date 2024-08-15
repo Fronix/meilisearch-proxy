@@ -93,5 +93,6 @@ proxy:
   overrideProxyKey: false
   masterKey: ""
   logLevel: "info"
+  purgeToken: ""
 
 

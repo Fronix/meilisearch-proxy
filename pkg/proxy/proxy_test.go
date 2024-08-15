@@ -30,6 +30,7 @@ var _ = Describe("Proxy", Ordered, func() {
 	var redis *miniredis.Miniredis
 	var fakeMeilisearch *http.Server
 	var addr string
+	var proxyServer *proxy.Proxy
 
 	// start a fake Meilisearch server
 
@@ -59,6 +60,7 @@ var _ = Describe("Proxy", Ordered, func() {
 			MeilisearchHost:        "http://localhost:7777",
 			MeilisearchMasterKey:   "masterKey",
 			ProxyMasterKey:         "proxyMasterKey",
+			ProxyPurgeToken:        "token",
 			ProxyMasterKeyOverride: false,
 			Port:                   "8888",
 			CacheConfig: &config.CacheConfig{
@@ -68,7 +70,7 @@ var _ = Describe("Proxy", Ordered, func() {
 			},
 		}
 
-		proxyServer := proxy.NewProxy(cfg)
+		proxyServer = proxy.NewProxy(cfg)
 		go proxyServer.Listen()
 	})
 
@@ -119,6 +121,37 @@ var _ = Describe("Proxy", Ordered, func() {
 		Expect(err).To(BeNil())
 
 		Expect(resBody).To(Equal([]byte(testIndexJSON)))
+	})
+
+	It("should purge cache on POST /purge", func() {
+
+		redis.Set("key", "value")
+
+		// create a request
+		req, _ := http.NewRequest("POST", "http://localhost:8888/purge", nil)
+		req.Header.Set("Authorization", "Bearer token")
+
+		resp, err := http.DefaultClient.Do(req)
+
+		Expect(err).To(BeNil())
+
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+		_, err = redis.Get("key")
+
+		Expect(err).ToNot(BeNil())
+	})
+
+	It("should 401 when a wrong purge token is used", func() {
+
+		// create a request
+		req, _ := http.NewRequest("POST", "http://localhost:8888/purge", nil)
+
+		resp, err := http.DefaultClient.Do(req)
+
+		Expect(err).To(BeNil())
+
+		Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))
 	})
 
 	AfterAll(func() {

@@ -192,6 +192,24 @@ func (p *Proxy) Listen() {
 	// mux / with both middlewares
 	mux.Handle("/", p.authMiddleware(p.headersMiddleware(p)))
 
+	mux.Handle("/purge", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		p.Logger.Info().Msg("Cache purge request received")
+
+		if p.config.ProxyPurgeToken != "" {
+			token := r.Header.Get("Authorization")
+
+			if token != fmt.Sprintf("Bearer %s", p.config.ProxyPurgeToken) {
+				p.Logger.Error().Msg("Unauthorized purge request")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		p.PurgeCache()
+		w.WriteHeader(http.StatusOK)
+	}))
+
 	log.Printf("Starting proxy server on  :%s", p.config.Port)
 
 	http.ListenAndServe(fmt.Sprintf(":%s", p.config.Port), mux)
@@ -228,4 +246,9 @@ func (p *Proxy) headersMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (p *Proxy) PurgeCache() error {
+	p.Logger.Info().Msg("Purging cache")
+	return p.cache.Clear(p.Context)
 }

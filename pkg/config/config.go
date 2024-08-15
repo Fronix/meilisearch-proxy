@@ -15,6 +15,7 @@ type Config struct {
 	MeilisearchMasterKey   string
 	ProxyMasterKey         string
 	ProxyMasterKeyOverride bool
+	ProxyPurgeToken        string
 	Port                   string
 	CacheConfig            *CacheConfig
 }
@@ -64,6 +65,7 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 		MeilisearchHost:        os.Getenv("MEILISEARCH_HOST"),
 		MeilisearchMasterKey:   os.Getenv("MEILISEARCH_MASTER_KEY"),
 		ProxyMasterKey:         os.Getenv("PROXY_MASTER_KEY"),
+		ProxyPurgeToken:        os.Getenv("PROXY_PURGE_TOKEN"),
 		ProxyMasterKeyOverride: false,
 		Port:                   os.Getenv("PORT"),
 		CacheConfig:            CacheConfig,
