@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/eko/gocache/lib/v4/store"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -99,7 +100,7 @@ var _ = Describe("Proxy", Ordered, func() {
 		// create a request
 		_, _ = http.NewRequest("GET", "http://localhost:8888/indexes/test/search", nil)
 
-		cached, err := redis.Get("69166bc619a4b7d7b518c76d46e73d10c2a1dae9baf31aaf4254906582534213")
+		cached, err := proxyServer.GetCache().Get(proxyServer.Context, "69166bc619a4b7d7b518c76d46e73d10c2a1dae9baf31aaf4254906582534213")
 
 		Expect(err).To(BeNil())
 
@@ -125,7 +126,8 @@ var _ = Describe("Proxy", Ordered, func() {
 
 	It("should purge cache on POST /purge", func() {
 
-		redis.Set("key", "value")
+		cache := proxyServer.GetCache()
+		cache.Set(proxyServer.Context, "key", "value")
 
 		// create a request
 		req, _ := http.NewRequest("POST", "http://localhost:8888/purge", nil)
@@ -137,7 +139,7 @@ var _ = Describe("Proxy", Ordered, func() {
 
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
-		_, err = redis.Get("key")
+		_, err = cache.Get(proxyServer.Context, "key")
 
 		Expect(err).ToNot(BeNil())
 	})
@@ -152,6 +154,33 @@ var _ = Describe("Proxy", Ordered, func() {
 		Expect(err).To(BeNil())
 
 		Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))
+	})
+
+	It("should only purge a specific index on POST /purge/test", func() {
+
+		cache := proxyServer.GetCache()
+
+		cache.Set(proxyServer.Context, "<index_test>", "value", store.WithTags([]string{"test"}))
+		cache.Set(proxyServer.Context, "<index_test2>", "value", store.WithTags([]string{"test2"}))
+
+		// create a request
+		req, _ := http.NewRequest("POST", "http://localhost:8888/purge/test", nil)
+		req.Header.Set("Authorization", "Bearer token")
+
+		resp, err := http.DefaultClient.Do(req)
+
+		Expect(err).To(BeNil())
+
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+		_, err = cache.Get(proxyServer.Context, "<index_test>")
+
+		Expect(err).ToNot(BeNil())
+
+		val, err := cache.Get(proxyServer.Context, "<index_test2>")
+
+		Expect(err).To(BeNil())
+		Expect(val).To(Equal("value"))
 	})
 
 	AfterAll(func() {

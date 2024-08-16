@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/eko/gocache/lib/v4/cache"
+	"github.com/eko/gocache/lib/v4/store"
 	"github.com/maxroll-media-group/meilisearch-proxy/pkg/caching"
 	"github.com/maxroll-media-group/meilisearch-proxy/pkg/config"
 	"github.com/maxroll-media-group/meilisearch-proxy/pkg/logger"
@@ -79,12 +80,16 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if regexp.MustCompile(`^/indexes/[^/]+/search$`).MatchString(r.URL.Path) {
 		p.handleSearch(w, r)
+	} else if regexp.MustCompile(`^/purge(/|$)`).MatchString(r.URL.Path) {
+		p.handlePurge(w, r)
 	} else {
 		p.handleDefault(w, r)
 	}
 }
 
 func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
+	indexName := util.ExtractIndexName(r.URL.Path)
+
 	cacheKey := sha256.Sum256([]byte(r.URL.Path))
 	if r.Method == http.MethodPost {
 		body, err := io.ReadAll(r.Body)
@@ -101,13 +106,13 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// Check if response is in cache
 	if response, err := p.cache.Get(p.Context, cacheKeyString); err == nil {
-		p.Logger.Info().Msgf("Cache hit for %s, key: %s", r.URL.Path, cacheKeyString)
+		p.Logger.Info().Msgf("[%s] Cache hit for %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 
 		w.Write([]byte(response))
 		return
 	}
 
-	p.Logger.Info().Msgf("Cache miss for %s, key: %s", r.URL.Path, cacheKeyString)
+	p.Logger.Info().Msgf("[%s] Cache miss for %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 
 	// Capture the response for caching
 	recorder := httptest.NewRecorder()
@@ -132,12 +137,12 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store response in cache
-	p.Logger.Debug().Msgf("Storing response in cache for %s, key: %s", r.URL.Path, cacheKeyString)
+	p.Logger.Debug().Msgf("[%s] Storing response in cache for %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 
-	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]))
+	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]), store.WithTags([]string{indexName}))
 
 	if err != nil {
-		p.Logger.Error().Msgf("Error storing response in cache for %s, key: %s: %s", r.URL.Path, cacheKeyString, err)
+		p.Logger.Error().Msgf("[%s] Error storing response in cache for %s, key: %s: %s", indexName, r.URL.Path, cacheKeyString, err)
 	}
 }
 
@@ -186,29 +191,31 @@ func (p *Proxy) handleDefault(w http.ResponseWriter, r *http.Request) {
 	p.proxy.ServeHTTP(w, r)
 }
 
+func (p *Proxy) handlePurge(w http.ResponseWriter, r *http.Request) {
+
+	indexName := util.ExtractIndexName(r.URL.Path)
+
+	p.Logger.Info().Msg("Cache purge request received")
+
+	if p.config.ProxyPurgeToken != "" {
+		token := r.Header.Get("Authorization")
+
+		if token != fmt.Sprintf("Bearer %s", p.config.ProxyPurgeToken) {
+			p.Logger.Error().Msg("Unauthorized purge request")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	p.PurgeCache(indexName)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (p *Proxy) Listen() {
 	mux := http.NewServeMux()
 
 	// mux / with both middlewares
 	mux.Handle("/", p.authMiddleware(p.headersMiddleware(p)))
-
-	mux.Handle("/purge", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		p.Logger.Info().Msg("Cache purge request received")
-
-		if p.config.ProxyPurgeToken != "" {
-			token := r.Header.Get("Authorization")
-
-			if token != fmt.Sprintf("Bearer %s", p.config.ProxyPurgeToken) {
-				p.Logger.Error().Msg("Unauthorized purge request")
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-		}
-
-		p.PurgeCache()
-		w.WriteHeader(http.StatusOK)
-	}))
 
 	log.Printf("Starting proxy server on  :%s", p.config.Port)
 
@@ -248,7 +255,18 @@ func (p *Proxy) headersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (p *Proxy) PurgeCache() error {
-	p.Logger.Info().Msg("Purging cache")
-	return p.cache.Clear(p.Context)
+func (p *Proxy) PurgeCache(index string) error {
+
+	if index != "" {
+		p.Logger.Info().Msgf("Purging cache for index: %s", index)
+		return p.cache.Invalidate(p.Context, store.WithInvalidateTags([]string{index}))
+	} else {
+		p.Logger.Info().Msg("Purging full cache for all indexes")
+
+		return p.cache.Clear(p.Context)
+	}
+}
+
+func (p *Proxy) GetCache() *cache.Cache[string] {
+	return p.cache
 }

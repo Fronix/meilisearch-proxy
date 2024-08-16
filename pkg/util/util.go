@@ -13,3 +13,15 @@ func SingleJoiningSlash(a, b string) string {
 	}
 	return a + b
 }
+
+// create a function that extracts the index name from the URL (example: /indexes/xxx/search)
+func ExtractIndexName(url string) string {
+	// split the URL by '/'
+	split := strings.Split(url, "/")
+	//
+	if len(split) < 3 {
+		return ""
+	}
+	// return the index name
+	return split[2]
+}
