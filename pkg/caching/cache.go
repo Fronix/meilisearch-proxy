@@ -44,7 +44,7 @@ func NewCache(ctx context.Context, config *config.CacheConfig) *cache.Cache[stri
 
 		opts, err := redis.ParseURL(config.Url)
 		if err != nil {
-			panic(err)
+			logger.Fatal().Msgf("Error parsing Redis URL: %s", err)
 		}
 
 		logger.Info().Msgf("Using Redis cache with URL: %s", config.Url)

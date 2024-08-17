@@ -78,6 +78,15 @@ func NewProxy(config *config.Config) *Proxy {
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
+	if r.URL.Path == "/health" {
+		// TODO: Implement a more robust health check
+		// challenge: the health check should check if the underlying meilisearch is reachable
+		// and if the cache is working. However, stale cache entries should still be used to avoid downtime.
+
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if regexp.MustCompile(`^/indexes/[^/]+/search$`).MatchString(r.URL.Path) {
 		p.handleSearch(w, r)
 	} else if regexp.MustCompile(`^/purge(/|$)`).MatchString(r.URL.Path) {
@@ -133,6 +142,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// never cache an error response or an empty response
 	if recorder.Code != http.StatusOK || len(responseBody) == 0 {
 		p.Logger.Debug().Msgf("Not caching response for %s, key: %s", r.URL.Path, cacheKeyString)
+		p.Logger.Warn().Msgf("[%s] Could not reach upstream Meilisearch. Path: %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 		return
 	}
 
@@ -207,7 +217,14 @@ func (p *Proxy) handlePurge(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	p.PurgeCache(indexName)
+	err := p.PurgeCache(indexName)
+
+	if err != nil {
+		p.Logger.Error().Msgf("Error purging cache: %s", err)
+		http.Error(w, "Error purging cache", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -256,6 +273,12 @@ func (p *Proxy) headersMiddleware(next http.Handler) http.Handler {
 }
 
 func (p *Proxy) PurgeCache(index string) error {
+
+	// test if the underlying meilisearch is reachable
+	_, err := http.Get(p.source.String())
+	if err != nil {
+		return fmt.Errorf("Error reaching Meilisearch host: %s, refusing to purge cache", err)
+	}
 
 	if index != "" {
 		p.Logger.Info().Msgf("Purging cache for index: %s", index)
