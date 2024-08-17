@@ -31,7 +31,7 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 
 	err := godotenv.Load()
 	if err != nil {
-		logger.Warn().Msg("Error loading .env file")
+		logger.Warn().Msg("Could not load .env file")
 	}
 
 	CacheConfig := &CacheConfig{
