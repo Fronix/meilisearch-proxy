@@ -114,7 +114,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	cacheKeyString := fmt.Sprintf("%x", cacheKey)
 
 	// Check if response is in cache
-	if response, err := p.cache.Get(p.Context, cacheKeyString); err == nil {
+	if response, err := p.cache.Get(r.Context(), cacheKeyString); err == nil {
 		p.Logger.Info().Msgf("[%s] Cache hit for %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 
 		w.Write([]byte(response))
@@ -149,7 +149,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Store response in cache
 	p.Logger.Debug().Msgf("[%s] Storing response in cache for %s, key: %s", indexName, r.URL.Path, cacheKeyString)
 
-	err = p.cache.Set(p.Context, cacheKeyString, string(responseBody[:]), store.WithTags([]string{indexName}))
+	err = p.cache.Set(r.Context(), cacheKeyString, string(responseBody[:]), store.WithTags([]string{indexName}))
 
 	if err != nil {
 		p.Logger.Error().Msgf("[%s] Error storing response in cache for %s, key: %s: %s", indexName, r.URL.Path, cacheKeyString, err)
