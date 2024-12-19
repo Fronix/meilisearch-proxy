@@ -262,6 +262,7 @@ func (p *Proxy) headersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Meilisearch-Client")
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
