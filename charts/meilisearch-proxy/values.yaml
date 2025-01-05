@@ -94,5 +94,6 @@ proxy:
   masterKey: ""
   logLevel: "info"
   purgeToken: ""
+  autoRestartInterval: "0"
 
 

@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/eko/gocache/lib/v4/cache"
 	"github.com/eko/gocache/lib/v4/store"
@@ -27,9 +28,10 @@ import (
 type Proxy struct {
 	source *url.URL
 
-	proxy  *httputil.ReverseProxy
-	cache  *cache.Cache[string]
-	config *config.Config
+	proxy       *httputil.ReverseProxy
+	cache       *cache.Cache[string]
+	config      *config.Config
+	startupTime time.Time
 	context.Context
 	zerolog.Logger
 }
@@ -66,13 +68,18 @@ func NewProxy(config *config.Config) *Proxy {
 	}
 	cache := caching.NewCache(ctx, config.CacheConfig)
 
+	if config.AutoRestartInterval > 0 {
+		logger.Info().Msgf("Auto restart interval set to %s", config.AutoRestartInterval)
+	}
+
 	return &Proxy{
-		source:  source,
-		proxy:   proxy,
-		cache:   cache,
-		config:  config,
-		Context: ctx,
-		Logger:  logger,
+		source:      source,
+		proxy:       proxy,
+		cache:       cache,
+		config:      config,
+		Context:     ctx,
+		Logger:      logger,
+		startupTime: time.Now(),
 	}
 }
 
@@ -82,6 +89,22 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// TODO: Implement a more robust health check
 		// challenge: the health check should check if the underlying meilisearch is reachable
 		// and if the cache is working. However, stale cache entries should still be used to avoid downtime.
+
+		autoRestartInterval := p.config.AutoRestartInterval
+
+		if autoRestartInterval > 0 {
+			// auto restart interval is time (1h, 1d, 1w, 1m, 1y)
+			// if the proxy is running for more than the interval, it should restart itself
+			// this is to avoid memory leaks and other issues
+			if time.Since(p.startupTime) > autoRestartInterval {
+				p.Logger.Warn().Msgf("Restarting proxy after running for %s", autoRestartInterval)
+
+				// fail the health check
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+
+		}
 
 		w.WriteHeader(http.StatusOK)
 		return

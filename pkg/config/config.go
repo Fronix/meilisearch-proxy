@@ -18,6 +18,7 @@ type Config struct {
 	ProxyPurgeToken        string
 	Port                   string
 	CacheConfig            *CacheConfig
+	AutoRestartInterval    time.Duration
 }
 
 type CacheConfig struct {
@@ -69,6 +70,7 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 		ProxyMasterKeyOverride: false,
 		Port:                   os.Getenv("PORT"),
 		CacheConfig:            CacheConfig,
+		AutoRestartInterval:    getAutoRestartInterval(),
 	}
 
 	if config.Port == "" {
@@ -94,4 +96,15 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func getAutoRestartInterval() time.Duration {
+	// os.Getenv("AUTO_RESTART_INTERVAL") is a string (1s, 1m, 1h, etc)
+	interval, err := time.ParseDuration(os.Getenv("AUTO_RESTART_INTERVAL"))
+
+	if err != nil {
+		return 0
+	}
+
+	return interval
 }
